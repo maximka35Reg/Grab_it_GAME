@@ -1,0 +1,159 @@
+@font-face {
+    font-family: 'Onest';
+    src: url('fonts/Onest-VariableFont_wght.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 600;
+}
+
+* {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Onest', 'Arial';
+    width: 100vw;
+}
+
+#game-container { position: relative; }
+
+span {
+    font-size: 18px;
+    color: #6A6460;
+    background: #DECFC7;
+    padding: 21px 47px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+    border-radius: 20px;
+}
+
+.grab-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.2;
+    padding: 15px 80px 20px;
+    min-height: 65px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    border-radius: 50px;
+    color: #FFFFFF;
+    background: linear-gradient(to bottom,#008C01, #30AB32);
+    box-shadow: inset 0 -5px 1px 0 #1F5308, 0 5px 9px #907C6D;
+}
+
+.grab-btn::after {
+    content: '';
+    display: inline-block;
+    width: 15px;
+    height: 12px;
+
+    background-color: #FFFFFF; 
+
+    mask: url('assets/right.svg') no-repeat center / contain;
+}
+
+.grab-btn:hover, 
+.grab-btn.active {
+    background: linear-gradient(to bottom,#FD9C41, #FC4714);
+    box-shadow: inset 0 -5px 1px 0 #D42900, 0 5px 9px #907C6D;
+}
+
+.grab-btn.start::after {
+    mask: url('assets/down.svg') no-repeat center / contain;
+}
+
+.grab-btn.disabled::after {
+    mask: url('assets/right.svg') no-repeat center / contain;
+    background-color: #6A6460;
+}
+
+.grab-btn.disabled,
+.grab-btn.disabled:hover {
+    color: #6A6460;
+    background: #FFEFDF;
+    box-shadow: inset 0 -5px 1px 0 #C7BAAD, 0 5px 9px #907C6D;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: -247px;
+    left: -538px;
+    min-width: 1078px;
+    min-height: 495px;
+    border-radius: 20px;
+
+    backdrop-filter: blur(5px);
+    background: rgba(241, 245, 250, 0.6);
+
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-window {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 32px;
+    min-width: 730px;
+    min-height: 348px;
+    border-radius: 20px;
+    gap: 12px;
+    background: #FFFFFF;
+    cursor: default;
+}
+
+.modal-img {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 12px;
+}
+
+.modal-window img {
+    display: block;
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+}
+
+.modal-window h2 {
+    text-align: center;
+    font-size: 42px;
+    color: #2F3747;
+    line-height: 1.1;
+    font-weight: 600;
+    width: 100%;
+}
+
+.modal-window h3 {
+    font-size: 20px;
+    color: #2F3747;
+    text-align: center;
+    margin-bottom: 12px;
+    font-weight: 400;
+    width: 440px;
+}
+
+.modal-window button {
+    width: 100%;
+    height: 58px;
+    font-size: 18px;
+    font-weight: 500;
+    color: #FFFFFF;
+    background: #30AB32;
+    padding: 16px 24px;
+    border-radius: 16px;
+    cursor: pointer;
+    border: none;
+}
