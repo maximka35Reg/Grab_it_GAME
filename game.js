@@ -4,7 +4,7 @@ var config = {
     parent: 'game-container',
     width: 1170,
     height: 880,
-    transparent: false,
+    transparent: true,
 
     dom: { createContainer: true },
 
@@ -18,7 +18,7 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { x: 0, y: 200 },
-            debug: true
+            debug: false
         }
     },
 }
