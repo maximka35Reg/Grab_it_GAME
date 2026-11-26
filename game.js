@@ -251,7 +251,7 @@ function createWalls(scene) {
 function createBalls(scene, walls) {
     const balls = scene.physics.add.group();
 
-    for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < 4; i++) {
         spawnBall(scene, balls);
     }
 
