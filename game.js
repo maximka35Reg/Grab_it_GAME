@@ -4,7 +4,7 @@ var config = {
     parent: 'game-container',
     width: 1170,
     height: 880,
-    transparent: true,
+    transparent: false,
 
     dom: { createContainer: true },
 
