@@ -3,9 +3,11 @@ var config = {
     type: Phaser.AUTO,
     parent: 'game-container',
     width: 1170,
-    height: 770,
+    height: 880,
     transparent: true,
+
     dom: { createContainer: true },
+
     scene: {
         preload: preload,
         create: create,
@@ -16,7 +18,7 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { x: 0, y: 200 },
-            debug: false
+            debug: true
         }
     },
 }
@@ -31,10 +33,14 @@ var game = new Phaser.Game(config);
 function preload() {
     this.load.image('bg', 'assets/background.png');
     this.load.image('bg_balloons', 'assets/balloons_bg.png');
-    this.load.image('claw_default', 'assets/claw_default.png');
-    this.load.image('claw_active', 'assets/claw_active.png');
-    this.load.image('claw_disabled', 'assets/claw_disabled.png');
     this.load.image('case', 'assets/case.png');
+
+    this.load.image('claw_default', 'assets/claw_default.png');
+    this.load.image('claw_default_hide', 'assets/claw_default_hide.png');
+    this.load.image('claw_active', 'assets/claw_active.png');
+    this.load.image('claw_active_small', 'assets/claw_active_small.png');
+    this.load.image('claw_disabled', 'assets/claw_disabled.png');
+
     this.load.image('lever_up', 'assets/lever_up.png');
     this.load.image('lever_down', 'assets/lever_down.png');
     
@@ -51,6 +57,10 @@ function preload() {
     this.load.image('active_ball5', 'assets/active_ball_piggy.png');
 }
 
+
+const ballsList = ['ball1', 'ball2', 'ball3', 'ball4', 'ball5'];
+const sizesSmallBalls = [98, 110, 120, 117];
+
 /**
  * @this {Phaser.Scene}
  */
@@ -61,9 +71,11 @@ function create() {
     this.isInputEnabled = false;
 
     this.score = loadAttempts();
-    this.lastPointerX = 0;
     this.clawState = 'default';
+    this.clawContact = false;
+    this.clawCandidate = null;
     this.caughtBall = null;
+    this.dropAnimationUntil = 0;
 
     createBackground(this);
     createInterface(this);
@@ -71,7 +83,9 @@ function create() {
 
     const walls = createWalls(this);
     this.balls = createBalls(this, walls);
+    this.smallBalls = createSmallBalls(this, walls);
     this.claw = createClaw(this);
+    this.clawTargetX = this.claw.x;
 
     setupCollisions(this);
     setupKeyboard(this);
@@ -124,20 +138,20 @@ function spendAttempt() {
 
 // Создание шаблона игрового автомата
 function createBackground(scene) {
-    scene.add.image(585, 300, 'bg').setDisplaySize(1075, 505).setDepth(0);
-    scene.add.image(0, 0, 'case').setOrigin(0, 0).setDisplaySize(1170, 740).setDepth(3);
-    scene.add.image(585, 420, 'bg_balloons').setDepth(1);
+    scene.add.image(585, 350, 'bg').setDisplaySize(1075, 610).setDepth(0);
+    scene.add.image(0, 0, 'case').setOrigin(0, 0).setDisplaySize(1170, 850).setDepth(3);
+    scene.add.image(585, 510, 'bg_balloons').setDepth(1);
 
-    scene.interactiveZone = scene.add.zone(585, 300, 1097, 510).setInteractive().setDepth(3);
+    scene.interactiveZone = scene.add.zone(585, 300, 1097, 620).setInteractive().setDepth(3);
 
-    scene.add.dom(850, 510).createFromHTML(`<img src="assets/lever_up.png" id="lever">`).setDepth(3);
+    scene.add.dom(850, 610).createFromHTML(`<img src="assets/lever_up.png" id="lever">`).setDepth(3);
     scene.leverImage = document.getElementById('lever');
 }
 
 // Создание элементов интерфейса
 function createInterface(scene) {
-    scene.scoreText = scene.add.dom(750, 640).createFromHTML(`<div><span id="score">0${scene.score}/03</span></div>`).setDepth(4);
-    scene.btn = scene.add.dom(350, 640).createFromHTML(`<button id="grab-btn" class="grab-btn">Начать игру</button>`).setDepth(4);
+    scene.scoreText = scene.add.dom(750, 735).createFromHTML(`<span id="score">0${scene.score}/03</span>`).setDepth(4);
+    scene.btn = scene.add.dom(350, 730).createFromHTML(`<button id="grab-btn" class="grab-btn">Начать игру</button>`).setDepth(4);
 
     if (scene.score === 0) document.getElementById('grab-btn').classList.add('disabled');
 }
@@ -193,9 +207,6 @@ function createModals(scene) {
     document.getElementById('victory-close-btn').addEventListener('click', () => { closeModal(scene.victoryModal, scene); });
     document.getElementById('defeat-close-btn').addEventListener('click', () => { closeModal(scene.defeatModal, scene); });
     document.getElementById('over-close-btn').addEventListener('click', () => { closeModal(scene.overModal, scene); });
-    document.getElementById('window-victory').addEventListener('click', (e) => { e.stopPropagation(); });
-    document.getElementById('window-defeat').addEventListener('click', (e) => { e.stopPropagation(); });
-    document.getElementById('window-over').addEventListener('click', (e) => { e.stopPropagation(); });
 }
 
 // Открытие модального окна
@@ -227,10 +238,11 @@ function closeModal(modal, scene) {
 // Создание границ игровой области
 function createWalls(scene) {
     const walls = scene.physics.add.staticGroup();
-    const floor = scene.add.rectangle(585, 620, 1060, 200, 0x000000, 0);
-    const right = scene.add.rectangle(1130, 300, 20, 500, 0x000000, 0);
-    const left = scene.add.rectangle(30, 300, 20, 500, 0x000000, 0);
+    const floor = scene.add.rectangle(585, 705, 1060, 190, 0x000000, 0);
+    const right = scene.add.rectangle(1130, 300, 20, 600, 0x000000, 0);
+    const left = scene.add.rectangle(30, 300, 20, 600, 0x000000, 0);
     walls.add(floor).add(right).add(left);
+    walls.refresh();
 
     return walls;
 }
@@ -239,7 +251,7 @@ function createWalls(scene) {
 function createBalls(scene, walls) {
     const balls = scene.physics.add.group();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 1; i++) {
         spawnBall(scene, balls);
     }
 
@@ -249,31 +261,53 @@ function createBalls(scene, walls) {
     return balls;
 }
 
+// Создание второго ряда маленьких шаров
+function createSmallBalls(scene, walls) {
+    const smallBalls = scene.physics.add.group();
+
+    for (let i = 0; i < 3; i++) {
+        spawnBall(scene, smallBalls, true);
+    }
+
+    scene.physics.add.collider(smallBalls, walls);
+    scene.physics.add.collider(smallBalls, smallBalls);
+
+    return smallBalls;
+}
+
 // Создание отдельного случайного шара
-function spawnBall(scene, ballsGroup) {
-    const ballsList = ['ball1', 'ball2', 'ball3', 'ball4', 'ball5'];
-
+function spawnBall(scene, ballsGroup, isSmall = false) {
     const x = Phaser.Math.Between(200, 950);
-    const y = Phaser.Math.Between(100, 150);
-    const rndBall = Phaser.Utils.Array.GetRandom(ballsList);
+    const y = Phaser.Math.Between(350, 400);
+    const texture = Phaser.Utils.Array.GetRandom(ballsList);
 
-    const ball = ballsGroup.create(x, y, rndBall);
+    const ball = ballsGroup.create(x, y, texture);
     
-    ball.originalTexture = rndBall;
+    ball.originalTexture = texture;
     ball.setCollideWorldBounds(true);
-    ball.setDepth(2);
+    ball.setDepth(isSmall ? 1.5 : 1);
     ball.setBounce(1);
     ball.setDrag(70);
-    ball.body.setCircle(70, 20, 20);
 
-    return ball
+    if (isSmall) {
+        const size = Phaser.Utils.Array.GetRandom(sizesSmallBalls);
+        ball.setScale(size / 170);
+        ball.body.setCircle(70, 20, 20);
+    }
+    else 
+        ball.body.setCircle(75, 15, 15);
+
+    return ball;
 }
 
 // Создание клешни и настройка её тела
 function createClaw(scene) {
-    const claw = scene.add.sprite(585, 100, 'claw_default').setOrigin(0.5, 0.7).setDepth(2);
+    const claw = scene.add.sprite(585, 75, 'claw_default').setOrigin(0.5, 0.7).setDepth(2);
     scene.physics.add.existing(claw);
+    claw.body.setCircle(60, 25, 420);
     claw.body.setAllowGravity(false);
+    claw.body.setImmovable(true);
+
     return claw;
 }
 
@@ -284,14 +318,13 @@ function setupKeyboard(scene) {
     scene.cursors = scene.input.keyboard.createCursorKeys();
     scene.keys = scene.input.keyboard.addKeys('A,D,SPACE,ESC');
 
-    scene.input.keyboard.on('keydown-ESC', () => {
+   /* scene.input.keyboard.on('keydown-ESC', () => {
         if (!scene.isInputEnabled) return;
 
         if (scene.victoryModal.visible) closeModal(scene.victoryModal, scene);
         else if (scene.defeatModal.visible) closeModal(scene.defeatModal, scene);
         else if (scene.overModal.visible) closeModal(scene.overModal, scene);
-    });
-
+    }); */
 }
 
 // Настройка взаимодействия с помощью мыши
@@ -309,13 +342,12 @@ function setupMouse(scene) {
         scene.isPointerInZone = false;
     });
 
-    scene.input.on('gameover', () => {
-        scene.isInputEnabled = true;
-    });
+    document.addEventListener('pointermove', (event) => {
+        const rect = document.getElementById('game-container').getBoundingClientRect();
+        const isOverGame = (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
 
-    scene.input.on('gameout', () => {
-        scene.isInputEnabled = false;
-    });
+        scene.isInputEnabled = isOverGame;
+    });    
 }
 
 // Настройка обработчика нажатия кнопки управления игрой
@@ -344,32 +376,29 @@ function setupButtons(scene) {
     });
 }
 
-// Пересечение клешни с шарами и обработка захвата
+// Пересечение клешни с шарами
 function setupCollisions(scene) {
-    scene.physics.add.overlap(scene.claw, scene.balls, (claw, ball) => {
-        if (scene.caughtBall) return;
-        if (scene.clawState !== 'descending') return;       
+    scene.physics.add.collider(scene.claw, scene.balls, handleClawContact, null, scene);
+    scene.physics.add.collider(scene.claw, scene.smallBalls, handleClawContact, null, scene);
 
-        const accuracy = Math.abs(claw.x - ball.x);
-        if (accuracy > 10) {
-            claw.setTexture('claw_disabled');
-            return;
-        }
+}
 
-        scene.isDrop = Math.random() < 0.55; 
+function handleClawContact(claw, ball) {
+    if (this.clawState !== 'descending' || this.clawContact) return;
 
-        scene.originalTextureBall = ball.originalTexture;
-        scene.caughtBall = ball;
-        ball.body.setAllowGravity(false);
-        ball.setVelocity(0, 0).setDepth(2);
+    const distanceX = Math.abs(ball.body.center.x - claw.body.center.x);
+    const distanceY = Math.abs(ball.body.top - claw.body.bottom);
 
-        claw.setTexture('claw_active');
-        const activeTexture = 'active_' + ball.originalTexture;
-        ball.setTexture(activeTexture);
-  
-        scene.clawState = 'closing';
-        scene.closingStart = scene.time.now;       
-    }, null, scene);
+    const isSmall = this.smallBalls.contains(ball);
+
+    const toleranceX = isSmall ? 20 : 10;
+    const toleranceY = isSmall ? 25 : 14;
+
+    if (distanceX <= toleranceX && distanceY <= toleranceY) {
+        this.clawCandidate = ball;
+    }
+
+    this.clawContact = true;
 }
 
 /**
@@ -377,65 +406,170 @@ function setupCollisions(scene) {
  */
 // Обновление состояний и обработка логики клешни
 function update() {
+
+   this.smallBalls.getChildren().forEach(ball => {
+        if (ball.body.touching.down && Math.abs(ball.body.velocity.y) < 20) {
+            ball.body.setVelocity(0, 0);
+            ball.body.setAllowGravity(false);
+        }
+    });
+
+    // Начальное состояние клешни 
     if (this.clawState === 'default')
     {
-        if (this.isStartGame && this.isInputEnabled) {
-            if (this.claw.x <= 140) this.claw.x = 140;
-            if (this.claw.x >= 1030) this.claw.x = 1030;  
+        if (this.score === 0) {
+            this.claw.body.setCircle(55, 15, 420);
+            this.claw.setTexture('claw_disabled');
+        }
+        
+        if (this.isStartGame && this.isInputEnabled) {  
+            if (!this.isPointerInZone) {
+                if (this.cursors.left.isDown || this.keys.A.isDown) this.clawTargetX -= 5;
+                if (this.cursors.right.isDown || this.keys.D.isDown) this.clawTargetX += 5;
 
-            if (this.cursors.left.isDown || this.keys.A.isDown) this.claw.x -= 5;       
-            if (this.cursors.right.isDown || this.keys.D.isDown) this.claw.x += 5;
-            if (this.input.activePointer.x !== this.lastPointerX &&  this.isPointerInZone) {
-                this.claw.x = Phaser.Math.Clamp(this.input.activePointer.x, 140, 1030);
-                this.lastPointerX = this.input.activePointer.x;
+                this.clawTargetX = Phaser.Math.Clamp(this.clawTargetX, 140, 1030);
             }
+            else this.clawTargetX = Phaser.Math.Clamp(this.input.activePointer.x, 140, 1030);
 
-            if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE) || Phaser.Input.Keyboard.JustDown(this.cursors.down)) startDescending(this);
-            if (this.isPointerInZone && this.input.activePointer.leftButtonDown()) startDescending(this);
+            this.claw.x = Phaser.Math.Linear(this.claw.x, this.clawTargetX, 0.015);
+
+            if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE) || Phaser.Input.Keyboard.JustDown(this.cursors.down))
+                startDescending(this);
+            if (this.isPointerInZone && this.input.activePointer.leftButtonDown())
+                startDescending(this);
         }
     }
 
-    if (this.clawState === 'descending') {
-        this.claw.y += 3;
+    // Состояние клешни при опускании
+    if (this.clawState === 'descending')
+    {
+        const balls = [...this.balls.getChildren(), ...this.smallBalls.getChildren()];
 
-        if (this.claw.y >= 360) {
-            this.claw.y = 360;
+        // Поиск шара находящегося прямо под клешнёй
+        const ballAhead = balls.filter(ball => {
+            const distanceX = Math.abs(ball.body.center.x - this.claw.body.center.x);
+            const gap = ball.body.top - this.claw.body.bottom;
+
+            return distanceX <= 20 && gap >= 0 && gap <= 100;
+        }).sort((a, b) => a.body.top - b.body.top)[0];
+
+        // При успешном поиске шара смена текстуры клешни (скрыта средняя лапа)
+        if (ballAhead) {
+            const isSmall = this.smallBalls.contains(ballAhead);
+            const gap = ballAhead.body.top - this.claw.body.bottom;
+
+            const hideDistance = isSmall ? 45 : 70;
+
+            if (gap <= hideDistance && this.claw.texture.key !== 'claw_default_hide') this.claw.setTexture('claw_default_hide');
+        }
+
+        // Момент когда клешня прекращает опускаться
+        if (this.clawContact || this.claw.y >= 430) {
+            if (this.clawCandidate) {
+                const ball = this.clawCandidate;
+                this.caughtBall = ball;
+                this.originalTextureBall = ball.originalTexture;
+
+                const isSmall = this.smallBalls.contains(ball);
+
+                // Смещение шара относительно клешни при поднятии
+                this.caughtOffsetX = ball.x - this.claw.x;
+                this.caughtOffsetY = ball.y - this.claw.y - (isSmall ? 10 : 0);
+                
+                ball.body.enable = false;
+
+                this.isDrop = Math.random() < 0.50;
+                if (this.isDrop) this.dropHeight = Phaser.Math.Between(200, 280);
+            }
+            else this.caughtBall = null;
+
             this.clawState = 'closing';
             this.closingStart = this.time.now;
+
+            this.clawContact = false;
+            this.clawCandidate = null;
+        } else {
+            this.claw.y += 2;
         }
     }
 
+    // Состояние клешни, когда она сомкнулась | Обработка захвата
     if (this.clawState === 'closing') {
-        if (this.time.now - this.closingStart >= 200) {
+        if (this.time.now - this.closingStart >= 250) {
+            if (this.caughtBall) {
+                this.caughtBall.setVelocity(0, 0);
+                this.caughtBall.setTexture('active_' + this.caughtBall.originalTexture);
+
+                const isSmall = this.smallBalls.contains(this.caughtBall);
+
+                this.claw.setTexture(isSmall ? 'claw_active_small' : 'claw_active');
+                isSmall ? this.claw.body.setCircle(55, 15, 420) : this.claw.body.setCircle(60, 25, 420);
+                this.caughtBall.setDepth(isSmall ? 2 : 1);
+            }
+            else {
+                this.claw.body.setCircle(55, 15, 420);
+                this.claw.setTexture('claw_disabled'); 
+            } 
+
             this.clawState = 'lifting';
         }
     }
 
+    // Состояние подъёма клешни
     if (this.clawState === 'lifting') {
-        this.claw.y -= 3;
+        this.claw.y -= 2;
 
+        this.claw.body.checkCollision.down = false;
         this.leverImage.src = 'assets/lever_up.png';
         this.leverImage.style.transform = 'translateY(0px)';
 
-        if (this.caughtBall && this.isDrop && this.claw.y <= 200) {
-            this.caughtBall.setTexture(this.originalTextureBall);
-            this.caughtBall.body.setAllowGravity(true);
-            this.claw.setTexture('claw_disabled');
+        if (this.caughtBall && this.isDrop && this.claw.y <= this.dropHeight) {
+            const ball = this.caughtBall;
+
+            ball.body.enable = true;
+            ball.setTexture(this.originalTextureBall);
+
+            ball.body.setAllowGravity(true);
+            if (this.smallBalls.contains(ball)) ball.setBounce(0.3);
+            ball.setDrag(30);
+            ball.setVelocity(Phaser.Math.Between(-40, 40), 150);
+
+            this.claw.body.setCircle(60, 25, 420);
+            this.claw.setTexture('claw_default');
+            this.dropAnimationUntil = this.time.now + 180;
+
             this.caughtBall = null;
             this.isDrop = false;
+            this.dropHeight = null;
         }
 
-        if (this.claw.y <= 105) {
-            this.claw.y = 105;
+        if (this.dropAnimationUntil > 0 && this.time.now >= this.dropAnimationUntil) {
+            this.claw.body.setCircle(55, 15, 420);
+            this.claw.setTexture('claw_disabled');
+            this.dropAnimationUntil = 0;
+        }
+
+        if (this.claw.y <= 75) {
+            this.claw.y = 75;
             this.clawState = 'returning';
         }
     }
 
+    // Возвращение клешни в начальное состояние
     if (this.clawState === 'returning') {
-        this.showOverModal = this.score === 0;
+        if (this.score === 0) {
+            const btn = document.getElementById('grab-btn');
+            btn.innerText = "Начать игру";
+            btn.classList.add('disabled');         
+            btn.classList.remove('start');
+            
+            this.showOverModal = true;
+        }
 
         this.clawState = 'default';
+        this.claw.body.setCircle(60, 25, 420);
         this.claw.setTexture('claw_default');
+        this.claw.body.checkCollision.down = true;
 
 
         if (this.caughtBall != null) {
@@ -443,7 +577,10 @@ function update() {
 
             this.caughtBall.destroy();
             this.caughtBall = null;
-            spawnBall(this, this.balls);
+            this.clawContact = false;
+            this.clawCandidate = null;
+
+            /* spawnBall(this, this.balls); */
         }
         else {
             openModal(this.defeatModal, this);
@@ -455,38 +592,39 @@ function update() {
         btn.classList.remove('active');
         btn.classList.remove('start');
         this.isStartGame = false;
-
-        if (this.score === 0) this.claw.setTexture('claw_disabled');
     }
 
 
-    if (this.caughtBall) {
-        this.caughtBall.x = this.claw.x;
-        this.caughtBall.y = this.claw.y + 110;
-    }
+    if (this.caughtBall) caughtBallPosition(this);
+}
+
+// Перемещение шара вместе с клешнёй
+function caughtBallPosition(scene) {
+    if (!scene.caughtBall) return;
+
+    const ball = scene.caughtBall;
+
+    const targetX = scene.claw.x + scene.caughtOffsetX;
+    const targetY = scene.claw.y + scene.caughtOffsetY;
+
+    ball.x = Phaser.Math.Linear(ball.x, targetX, 0.18);
+    ball.y = Phaser.Math.Linear(ball.y, targetY, 0.18);
 }
 
 // Запуск захвата клешни
 function startDescending(scene) {
-        if (scene.score <= 0) {
-            openModal(scene.overModal, scene);
-            return;
-        }
-        
-        document.getElementById('grab-btn').classList.add('active');
+    if (scene.score <= 0) {
+        openModal(scene.overModal, scene);
+        return;
+    }
+    
+    document.getElementById('grab-btn').classList.add('active');
 
-        scene.score = spendAttempt();
-        document.getElementById('score').textContent = `0${scene.score}/03`;
+    scene.score = spendAttempt();
+    document.getElementById('score').textContent = `0${scene.score}/03`;
 
-        if (scene.score === 0) {
-            const btn = document.getElementById('grab-btn');
-            btn.innerText = "Начать игру";
-            btn.classList.add('disabled');         
-            btn.classList.remove('start');
-        }
+    scene.leverImage.src = 'assets/lever_down.png';
+    scene.leverImage.style.transform = 'translateY(90px)';
 
-        scene.leverImage.src = 'assets/lever_down.png';
-        scene.leverImage.style.transform = 'translateY(90px)';
-
-        scene.clawState = 'descending';
+    scene.clawState = 'descending';
 }
